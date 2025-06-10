@@ -1,22 +1,17 @@
-# variables.tf
-variable "ssh_user" {
-  description = "Utilisateur SSH"
+variable "region" {
+  description = "AWS Region"
   type        = string
+  default     = "us-east-1"
 }
 
-variable "ssh_host" {
-  description = "IP ou hostname du serveur"
+variable "ami_id" {
+  description = "ID de l'AMI Linux"
   type        = string
+  default     = "ami-0c55b159cbfafe1f0"  # Amazon Linux 2 (us-east-1)
 }
 
-variable "private_key" {
-  description = "Clé privée SSH"
+variable "instance_type" {
+  description = "Type d'instance"
   type        = string
-  sensitive   = true
-}
-
-variable "nginx_port" {
-  description = "Port Nginx"
-  type        = number
-  default     = 6666
+  default     = "t2.micro"
 }
