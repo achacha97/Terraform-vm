@@ -15,3 +15,10 @@ variable "instance_type" {
   type        = string
   default     = "t2.micro"
 }
+# Variable optionnelle pour le token Vault (meilleure pratique)
+variable "vault_token" {
+  description = "Token d'accès à Vault"
+  type        = string
+  sensitive   = true
+  default     = "" # Préférez le passer via variable d'environnement
+}
