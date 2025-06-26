@@ -1,0 +1,54 @@
+- name: Configure EC2 instance
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        upgrade: yes
+
+    - name: Install NGINX
+      apt:
+        name: nginx
+        state: present
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Install npm
+      apt:
+        name: npm
+        state: present
+
+    - name: Copy Node.js app
+      copy:
+        src: ../app/
+        dest: /home/ubuntu/app/
+        mode: 0755
+
+    - name: Install dependencies
+      shell: cd /home/ubuntu/app && npm install
+
+    - name: Setup .env
+      copy:
+        content: "ENVIRONMENT_NAME={{ env_name }}"
+        dest: /home/ubuntu/app/.env
+        mode: 0644
+
+    - name: Copy NGINX config
+      copy:
+        src: ../nginx/default
+        dest: /etc/nginx/sites-available/default
+        mode: 0644
+
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted
+
+    - name: Start Node.js app
+      shell: node /home/ubuntu/app/index.js &
+
