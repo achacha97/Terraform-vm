@@ -1,0 +1,152 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    environment_name: "{{ lookup('env','ENVIRONMENT_NAME') | default('test') }}"
+    app_dir: "/home/ubuntu/app"
+    node_version: "18.x"
+    app_port: "{{ 4000 if environment_name == 'prod' else 3000 }}"
+  
+  tasks:
+    # Étape 1: Nettoyage des installations existantes (uniquement pour test)
+    - name: Purger les anciennes versions de Node.js
+      apt:
+        name:
+          - nodejs
+          - npm
+          - libnode-dev
+        state: absent
+        purge: yes
+        autoremove: yes
+      when: environment_name == 'test'
+
+    - name: Supprimer les fichiers résiduels Node.js
+      shell: |
+        rm -rf /usr/lib/node_modules
+        rm -rf ~/.npm
+        rm -rf /usr/local/lib/node_modules
+      args:
+        executable: /bin/bash
+      when: environment_name == 'test'
+
+    # Étape 2: Préparation du système
+    - name: Installer les dépendances requises
+      apt:
+        name:
+          - curl
+          - gnupg2
+          - ca-certificates
+        state: present
+        update_cache: yes
+
+    # Étape 3: Installation Node.js via NodeSource
+    - name: Installer Node.js via NodeSource (méthode recommandée)
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+      args:
+        executable: /bin/bash
+
+    # Étape 4: Installation des autres dépendances
+    - name: Installer les paquets requis
+      apt:
+        name:
+          - nginx
+          - build-essential
+          - git
+        state: present
+
+    # Étape 5: Configuration Nginx
+    - name: Déployer la configuration Nginx
+      template:
+        src: "../nginx/default"  # Chemin relatif vers votre fichier dans le dossier nginx
+        dest: /etc/nginx/sites-available/default
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Activer la configuration Nginx
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+        force: yes   # Force la création même si le lien existe déjà
+
+    - name: Valider la configuration Nginx
+      shell: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: nginx_test.rc != 0
+
+    - name: Redémarrer Nginx
+      service:
+        name: nginx
+        state: restarted
+      when: nginx_test.rc == 0
+
+    # Étape 6: Déploiement de l'application
+    - name: Créer la structure de l'application
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+      loop:
+        - "{{ app_dir }}"
+        - "{{ app_dir }}/node_modules"
+
+    - name: Copier les fichiers de l'application
+      copy:
+        src: "../app/{{ item }}"
+        dest: "{{ app_dir }}/{{ item }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: "{{ item == 'index.js' | ternary('0755', '0644') }}"
+      loop:
+        - "package.json"
+        - "index.js"
+
+    - name: Déployer le fichier .env
+      copy:
+        dest: "{{ app_dir }}/.env"
+        content: |
+          ENVIRONMENT_NAME={{ environment_name }}
+          PORT={{ app_port }}
+          NODE_ENV=production
+          DB_HOST=localhost
+          SECRET_KEY=votre_cle_secrete
+        owner: ubuntu
+        group: ubuntu
+        mode: 0644
+
+    # Étape 7: Installation des dépendances Node.js
+    - name: Installer les dépendances npm
+      shell: |
+        npm install
+        npm cache clean --force
+      args:
+        chdir: "{{ app_dir }}"
+        executable: /bin/bash
+
+    # Étape 8: Configuration PM2
+    - name: Installer PM2 globalement
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Démarrer l'application avec PM2
+      shell: |
+        pm2 delete node-app-{{ environment_name }} || true
+        pm2 start {{ app_dir }}/index.js --name "node-app-{{ environment_name }}" --update-env
+        pm2 save
+      args:
+        executable: /bin/bash
+        chdir: "{{ app_dir }}"
+
+    - name: Configurer le service PM2 au démarrage
+      shell: pm2 startup systemd -u ubuntu --hp /home/ubuntu
+      args:
+        executable: /bin/bash
+      register: pm2_startup
+      changed_when: "'already' not in pm2_startup.stdout"

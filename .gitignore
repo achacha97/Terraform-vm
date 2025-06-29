@@ -1,0 +1,45 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
+
+# Ansible
+ansible/inventory.ini
+ansible/.vault-password
+*.retry
+
+# Node.js
+node_modules/
+.env
+package-lock.json
+npm-debug.log
+
+# System
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+*.log
+*.swp
+*~
+~
+*.bak
+__pycache__/
+
+# SSH Keys
+*.pem
+id_rsa*
+*.ppk
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment specific
+terraform.auto.tfvars
+terraform.tfvars
+secrets.auto.tfvars
